@@ -1,39 +1,33 @@
 # Helpers for specs that assert on real-time behaviour.
 #
-# A browser's ActionCable subscription is established asynchronously, some
-# time after the page has rendered. A broadcast raised before that completes
-# is simply missed: HyperModel has nothing to re-fetch from, so the observing
-# page sits on its initial data forever. Locally the subscription wins the
-# race; on a slower CI runner it does not, which showed up as only the
-# observer-first real-time spec failing.
+# A page auto-connects its transport on boot, but asynchronously. The
+# prerendered footer opens a Hyperstack::Connection row carrying a session id
+# ("in progress"); only once the browser acks via connect-to-transport is that
+# replaced by a `session: nil` row, which is the marker the broadcast path
+# uses to decide a channel is live. A server-side change before that point
+# races the subscription and is simply missed -- the client has nothing to
+# re-fetch from, so the observing page keeps its initial data forever.
 #
-# This is a test-harness race, not an app defect -- a real user's socket
-# connects in well under a second and then stays up -- so the specs wait for
-# the subscription rather than the app being changed to paper over it.
+# This is a harness race, not an app defect: a real user's socket connects in
+# well under a second and then stays up. Same approach as parking_lot.
 module CableHelpers
-  # Capybara's server runs in this process, so the connections are inspectable
-  # directly.
-  def subscribed_cable_connections
-    ActionCable.server.connections.count do |connection|
-      connection.subscriptions.identifiers.any?
-    rescue StandardError
-      false
-    end
+  DEFAULT_CHANNEL = "Hyperstack::Application"
+
+  def subscribed?(channel = DEFAULT_CHANNEL)
+    Hyperstack::Connection.exists?(channel: channel, session: nil)
   end
 
-  def wait_for_cable_subscriptions(count = 1, timeout: 30)
+  def wait_for_subscription(channel = DEFAULT_CHANNEL, timeout: 30)
     deadline = Time.now + timeout
-    sleep 0.1 while subscribed_cable_connections < count && Time.now < deadline
-
-    return if subscribed_cable_connections >= count
+    sleep 0.1 while !subscribed?(channel) && Time.now < deadline
+    return if subscribed?(channel)
 
     raise <<~MESSAGE
-      expected at least #{count} subscribed ActionCable connection(s) within #{timeout}s,
-      saw #{subscribed_cable_connections} (open connections: #{ActionCable.server.connections.size})
+      no live #{channel} subscription within #{timeout}s.
 
-      allowed_request_origins: #{Rails.application.config.action_cable.allowed_request_origins.inspect}
-      disable_request_forgery_protection: #{Rails.application.config.action_cable.disable_request_forgery_protection.inspect}
-      Capybara app host: #{Capybara.current_session.server&.base_url.inspect}
+      connection rows: #{Hyperstack::Connection.all.map { |c| [ c.channel, c.session ] }.inspect}
+      open websockets: #{ActionCable.server.connections.size}
+      tables present:  connections=#{Hyperstack::Connection.table_exists?}
 
       browser console:
       #{browser_console_dump}

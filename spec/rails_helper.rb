@@ -12,27 +12,6 @@ Rails.root.glob("spec/support/**/*.rb").sort.each { |f| require f }
 
 ActiveRecord::Migration.maintain_test_schema!
 
-# Hyperstack decides whether to broadcast a model change locally or to POST it
-# to a separate server process using:
-#
-#   def self.on_server?
-#     defined? Rails::Server
-#   end
-#
-# which is only true when the app was booted by `rails server`. Under RSpec,
-# Capybara boots the app in *this* process, so on_server? is false and
-# ReactiveRecord::Broadcast#after_commit takes its `send_to_server` branch --
-# an HTTP round trip to Connection.root_path wrapped in `rescue nil`. The
-# result is that no ActionCable broadcast is ever emitted and every real-time
-# assertion fails with no error anywhere.
-#
-# Here the server and the test are the same process, so broadcasting locally
-# is correct. hyper-spec does exactly this in its own before(:each) hook.
-Hyperstack.class_eval do
-  def self.on_server?
-    true
-  end
-end
 
 # This machine's chromedriver on PATH is stale relative to the installed
 # Chrome, and Selenium Manager trusts a PATH driver over downloading a
@@ -76,11 +55,33 @@ RSpec.configure do |config|
     driven_by :livetrack_chrome
   end
 
-  config.after(:each) do
+  # Hyperstack.on_server? is `defined?(Rails::Server)`, so it is false under
+  # RSpec even though Capybara's in-process Puma *is* the server. Two things
+  # then break, both silently:
+  #
+  #   1. ReactiveRecord::Broadcast#after_commit takes its `send_to_server`
+  #      branch -- an HTTP round trip wrapped in `rescue nil` -- so no
+  #      ActionCable broadcast is ever emitted.
+  #   2. Hyperstack only auto-creates its connection/queued-message tables
+  #      when on_server? is true. Those tables live outside migrations and so
+  #      are absent from db/schema.rb, which means a *fresh* database has
+  #      neither -- connect-to-transport 503s and no browser ever subscribes.
+  #
+  # (2) is invisible locally, where the tables survive in test.sqlite3 from
+  # earlier runs, and only shows up on CI. Same approach as parking_lot.
+  config.before(:suite) do
+    def Hyperstack.on_server?
+      true
+    end
+    Hyperstack::Connection.build_tables
+  end
+
+  config.before(:each) do
     Location.delete_all
     Tracker.delete_all
-    # Hyperstack creates these tables itself, outside migrations, and rows
-    # persist across examples -- stale channels would otherwise accumulate.
-    Hyperstack::Connection.delete_all if Hyperstack::Connection.table_exists?
+    # Clear transport state too, so a subscription wait cannot be satisfied by
+    # a leftover row from the previous example's page.
+    Hyperstack::ConnectionAdapter::ActiveRecord::QueuedMessage.delete_all
+    Hyperstack::ConnectionAdapter::ActiveRecord::Connection.delete_all
   end
 end
