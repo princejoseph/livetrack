@@ -74,6 +74,9 @@ RSpec.describe "Live tracking", type: :system do
       visit "/everyone"
       expect(page).to have_css(".leaflet-container", wait: 30)
       expect(page).to have_content("0 tracking now", wait: 30)
+      # Only once the observer is actually subscribed can it receive the
+      # mover's broadcast; see spec/support/cable_helpers.rb.
+      wait_for_cable_subscriptions(1)
     end
 
     # Session B: a separate browser session, so a separate Tracker, that starts
