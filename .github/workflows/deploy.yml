@@ -50,20 +50,23 @@ jobs:
     # Nothing reaches Fly unless the whole suite passes.
     needs: test
     runs-on: ubuntu-latest
-    environment: production
+    # The secret is lifted to job env because the `secrets` context is not
+    # available in a step-level `if` -- referencing it there is a workflow
+    # parse error, which shows up as a run with no jobs at all.
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
+
       - name: Deploy to Fly
-        if: ${{ secrets.FLY_API_TOKEN != '' }}
+        if: env.FLY_API_TOKEN != ''
         run: flyctl deploy --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       # Skip rather than fail while the Fly side is not wired up yet, so the
       # test gate stays a useful signal instead of a permanently red build.
       - name: Skipped (no Fly token)
-        if: ${{ secrets.FLY_API_TOKEN == '' }}
+        if: env.FLY_API_TOKEN == ''
         run: |
           echo "::warning::FLY_API_TOKEN is not set, so the deploy was skipped."
           echo "Set it with: flyctl tokens create deploy | gh secret set FLY_API_TOKEN"
