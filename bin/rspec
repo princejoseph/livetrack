@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Resolves a chromedriver matching the locally installed Chrome before running
+# the suite: the chromedriver on PATH here is stale, and Selenium Manager
+# prefers a PATH driver over fetching a correct one.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+manager="$(ruby -e 'require "selenium/webdriver"; print Selenium::WebDriver::SeleniumManager.send(:binary)' 2>/dev/null || true)"
+if [ -n "${manager:-}" ] && [ -x "$manager" ]; then
+  resolved="$("$manager" --browser chrome --output json 2>/dev/null \
+    | ruby -rjson -e 'j=JSON.parse($stdin.read); print(j.dig("result","driver_path").to_s)' || true)"
+  if [ -n "${resolved:-}" ] && [ -x "$resolved" ]; then
+    export CHROMEDRIVER_PATH="$resolved"
+    echo "using chromedriver: $CHROMEDRIVER_PATH"
+  fi
+fi
+
+exec bundle exec rspec "$@"

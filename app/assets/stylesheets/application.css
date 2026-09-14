@@ -1,0 +1,28 @@
+:root { color-scheme: light; }
+
+body {
+  margin: 0;
+  background: #ffffff;
+  color: #111827;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* Leaflet divIcon wrapper: strip the default white box so only the coloured
+   dot rendered inside it shows. */
+.lt-pin {
+  background: transparent;
+  border: none;
+}
+
+/* Permanent name labels above each marker. */
+.leaflet-tooltip.lt-label {
+  background: rgba(17, 24, 39, 0.82);
+  border: none;
+  box-shadow: none;
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 2px 6px;
+}
+
+.leaflet-tooltip.lt-label::before { display: none; }
