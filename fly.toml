@@ -27,6 +27,19 @@ console_command = '/rails/bin/rails console'
   max_machines_running = 1
   processes = ['app']
 
+  # Thruster binds :8080 and reports reachable a second or two before Puma is
+  # accepting on :3000, so without a readiness check Fly routes into that
+  # window and the first request after a start returns 502 ("Unable to proxy
+  # request ... dial tcp 127.0.0.1:3000: connection refused"). /up is Rails'
+  # own health endpoint and is excluded from the logs by
+  # config.silence_healthcheck_path.
+  [[http_service.checks]]
+    interval = "10s"
+    timeout = "2s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/up"
+
 [[vm]]
   memory = '512mb'
   cpu_kind = 'shared'
