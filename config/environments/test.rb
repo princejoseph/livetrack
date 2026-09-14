@@ -4,6 +4,13 @@
 # and recreated between test runs. Don't rely on the data there!
 
 Rails.application.configure do
+  # System specs drive a real browser against Capybara's ephemeral
+  # host:port, and ActionCable's same-origin check is the one thing standing
+  # between that browser and a working socket. Production keeps the check --
+  # this is test-only, and without it a failure here is indistinguishable
+  # from the app being broken.
+  config.action_cable.disable_request_forgery_protection = true
+
   # Settings specified here will take precedence over those in config/application.rb.
 
   # While tests run files are not watched, reloading is not necessary.

@@ -25,10 +25,29 @@ module CableHelpers
     deadline = Time.now + timeout
     sleep 0.1 while subscribed_cable_connections < count && Time.now < deadline
 
-    if subscribed_cable_connections < count
-      raise "expected at least #{count} subscribed ActionCable connection(s) " \
-            "within #{timeout}s, saw #{subscribed_cable_connections}"
-    end
+    return if subscribed_cable_connections >= count
+
+    raise <<~MESSAGE
+      expected at least #{count} subscribed ActionCable connection(s) within #{timeout}s,
+      saw #{subscribed_cable_connections} (open connections: #{ActionCable.server.connections.size})
+
+      allowed_request_origins: #{Rails.application.config.action_cable.allowed_request_origins.inspect}
+      disable_request_forgery_protection: #{Rails.application.config.action_cable.disable_request_forgery_protection.inspect}
+      Capybara app host: #{Capybara.current_session.server&.base_url.inspect}
+
+      browser console:
+      #{browser_console_dump}
+    MESSAGE
+  end
+
+  def browser_console_dump
+    page.driver.browser.logs.get(:browser)
+        .reject { |entry| entry.level == "INFO" }
+        .last(15)
+        .map { |entry| "  [#{entry.level}] #{entry.message[0, 300]}" }
+        .join("\n")
+  rescue StandardError => e
+    "  (unavailable: #{e.class})"
   end
 end
 
