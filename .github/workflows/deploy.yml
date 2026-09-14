@@ -26,10 +26,12 @@ jobs:
           ruby-version: .ruby-version
           bundler-cache: true
 
-      - uses: browser-actions/setup-chrome@v1
-        with:
-          chrome-version: stable
-          install-chromedriver: true
+      # No setup-chrome step on purpose. The runner image already ships Google
+      # Chrome with a matching chromedriver on PATH, and installing another one
+      # produced a mismatch (chromedriver 153 vs the Chrome 152 Selenium
+      # actually launched) that failed every system spec with
+      # "session not created". Selenium Manager resolves the matched pair here;
+      # CHROMEDRIVER_PATH is only set locally, where the PATH driver is stale.
 
       - name: Run tests
         env:
@@ -53,6 +55,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Deploy to Fly
+        if: ${{ secrets.FLY_API_TOKEN != '' }}
         run: flyctl deploy --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # Skip rather than fail while the Fly side is not wired up yet, so the
+      # test gate stays a useful signal instead of a permanently red build.
+      - name: Skipped (no Fly token)
+        if: ${{ secrets.FLY_API_TOKEN == '' }}
+        run: |
+          echo "::warning::FLY_API_TOKEN is not set, so the deploy was skipped."
+          echo "Set it with: flyctl tokens create deploy | gh secret set FLY_API_TOKEN"

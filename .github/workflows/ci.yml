@@ -45,13 +45,12 @@ jobs:
           ruby-version: .ruby-version
           bundler-cache: true
 
-      # The system specs drive a real browser. Runners ship Chrome already;
-      # this pins a matching chromedriver rather than trusting whatever is on
-      # PATH (the failure mode that bin/rspec works around locally).
-      - uses: browser-actions/setup-chrome@v1
-        with:
-          chrome-version: stable
-          install-chromedriver: true
+      # No setup-chrome step on purpose. The runner image already ships Google
+      # Chrome with a matching chromedriver on PATH, and installing another one
+      # produced a mismatch (chromedriver 153 vs the Chrome 152 Selenium
+      # actually launched) that failed every system spec with
+      # "session not created". Selenium Manager resolves the matched pair here;
+      # CHROMEDRIVER_PATH is only set locally, where the PATH driver is stale.
 
       - name: Run tests
         env:
