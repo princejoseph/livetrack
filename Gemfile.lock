@@ -470,6 +470,11 @@ GEM
       unicode_utils (~> 1.4)
     strings-ansi (0.2.0)
     thor (1.5.0)
+    thruster (0.1.26)
+    thruster (0.1.26-aarch64-linux)
+    thruster (0.1.26-arm64-darwin)
+    thruster (0.1.26-x86_64-darwin)
+    thruster (0.1.26-x86_64-linux)
     tilt (2.9.0)
     timecop (0.9.11)
     timeout (0.6.1)
@@ -505,12 +510,14 @@ GEM
     zeitwerk (2.8.3)
 
 PLATFORMS
+  aarch64-linux
   aarch64-linux-gnu
   aarch64-linux-musl
   arm-linux-gnu
   arm-linux-musl
   arm64-darwin
   x86_64-darwin
+  x86_64-linux
   x86_64-linux-gnu
   x86_64-linux-musl
 
@@ -540,6 +547,7 @@ DEPENDENCIES
   selenium-webdriver
   sprockets-rails
   sqlite3 (>= 2.1)
+  thruster
   tzinfo-data
   web-console
 

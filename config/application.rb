@@ -51,6 +51,17 @@ module Livetrack
     # stays ahead of them.
     config.assets.paths += Opal.paths
 
+    # opal-rails 3 is an unavoidable *runtime* dependency of rails-hyperstack,
+    # so its railtie loads even though this app compiles Opal through
+    # opal-sprockets instead. That railtie makes `opal:build` a prerequisite of
+    # `assets:precompile` (lib/opal/rails/task_hooks.rb), and its resolver
+    # raises MissingEntrypointError unless app/opal exists -- which breaks
+    # production asset precompilation, and nothing else, so it only shows up
+    # at deploy time. Declaring no entrypoints makes that task a no-op
+    # ("Built 0 Opal assets"); app/opal is kept as an empty directory to
+    # satisfy the resolver's existence check.
+    config.opal.entrypoints = {}
+
     # Don't generate system test files.
     config.generators.system_tests = nil
   end

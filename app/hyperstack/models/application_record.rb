@@ -11,7 +11,18 @@ class ApplicationRecord < ActiveRecord::Base
     primary_abstract_class
   end
 
-  # allow remote access to all scopes - i.e. you can count or get a list of ids
-  # for any scope or relationship
-  ApplicationRecord.regulate_scope :all unless Hyperstack.env.production?
+  # Allow remote access to all scopes, in *every* environment.
+  #
+  # The installer generates this line with `unless Hyperstack.env.production?`,
+  # which breaks the app in production only: a scope declared without an
+  # explicit `regulate:` option gets an auto-regulator whose block returns nil,
+  # so its permission is inherited from the parent relation
+  # (see __synchromesh_regulate_from_macro / __set_synchromesh_permission_granted).
+  # With `:all` unregulated in production, `Tracker.live` inherits nothing and
+  # the everyone map comes back empty with no error anywhere.
+  #
+  # Reads being fully public is the intended design here -- a shared map of
+  # everyone's position. Write access is what is actually restricted, in
+  # app/policies/hyperstack/application_policy.rb.
+  ApplicationRecord.regulate_scope :all
 end

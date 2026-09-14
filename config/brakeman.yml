@@ -1,0 +1,22 @@
+---
+# app/hyperstack/components/ is client-side Opal source. It is compiled to
+# JavaScript by Sprockets and never executed as server-side Ruby, and the
+# `%x{}` / backticks in it are Opal's raw-JavaScript-embedding syntax, not
+# Kernel#` shell execution -- there is no server command to inject into.
+# Brakeman cannot tell the difference, since it just sees .rb files under app/.
+#
+# Skipping the directory rather than ignoring individual fingerprints is
+# deliberate: Brakeman's Execute check reports a different, non-deterministic
+# subset of near-identical %x{} sites on each run, so a fingerprint-based
+# ignore file goes stale and fails CI with no code change.
+#
+# app/hyperstack/models/ is NOT skipped -- those files do run on the server.
+:skip_files:
+  - app/hyperstack/components/
+
+# Dependency-lifecycle signal, not a code vulnerability: Rails 8.0 support
+# ends 2026-11-07. This app is pinned to Rails 8.0 on purpose -- the
+# princejoseph/hyperstack fork's gemspecs cap at `rails < 8.1` -- so the
+# upgrade is tracked against that fork, not chased per-app by a failing CI job.
+:skip_checks:
+  - CheckEOLRails

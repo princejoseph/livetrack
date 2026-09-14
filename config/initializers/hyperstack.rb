@@ -7,9 +7,9 @@
 Hyperstack.transport = :action_cable # :pusher, :simple_poller or :none
 
 
-Hyperstack.import 'react/react-source-browser' # bring in hyperstack's copy of react, comment this out if you bring it in from webpacker
+Hyperstack.import "react/react-source-browser" # bring in hyperstack's copy of react, comment this out if you bring it in from webpacker
 
-Hyperstack.import 'hyperstack/hotloader', client_only: true if Rails.env.development?
+Hyperstack.import "hyperstack/hotloader", client_only: true if Rails.env.development?
 
 # server_side_auto_require will patch the ActiveSupport Dependencies module
 # so that you can define classes and modules with files in both the
@@ -22,7 +22,7 @@ require "hyperstack/server_side_auto_require.rb"
 
 # set the component base class
 
-Hyperstack.component_base_class = 'HyperComponent' # i.e. 'ApplicationComponent'
+Hyperstack.component_base_class = "HyperComponent" # i.e. 'ApplicationComponent'
 
 # prerendering is default :off, you should wait until your
 # application is relatively well debugged before turning on.
@@ -39,8 +39,8 @@ module Hyperstack
     ::Rails.logger.debug(
       "#{formatted_error_message}\n\n" +
       Pastel.new.red(
-        'To further investigate you may want to add a debugging '\
-        'breakpoint to the on_error method in config/initializers/hyperstack.rb'
+        "To further investigate you may want to add a debugging "\
+        "breakpoint to the on_error method in config/initializers/hyperstack.rb"
       )
     )
   end

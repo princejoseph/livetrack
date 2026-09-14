@@ -1,0 +1,36 @@
+# fly.toml — livetrack
+#
+# IMPORTANT: this app must run as a SINGLE machine.
+# config/cable.yml uses the in-process `async` ActionCable adapter, so a
+# broadcast raised on one machine is only delivered to the clients connected
+# to that same machine. Scaling past one instance silently breaks the live
+# map for a fraction of users. Moving beyond one machine means adding Redis
+# and switching the production adapter.
+
+app = 'livetrack'
+primary_region = 'iad'
+console_command = '/rails/bin/rails console'
+
+[build]
+
+[http_service]
+  # Thruster listens here and proxies to Puma, serving the ~2.5MB Opal bundle
+  # gzipped and with far-future caching.
+  internal_port = 80
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  # Keep one machine up: a suspended machine drops every open WebSocket, and
+  # this app's whole point is a live connection.
+  min_machines_running = 1
+  max_machines_running = 1
+  processes = ['app']
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1
+
+# No [mounts]. SQLite lives at storage/production.sqlite3 on the ephemeral
+# filesystem and is recreated empty on each boot -- positions are live data
+# with no value after a restart, so there is nothing to persist.

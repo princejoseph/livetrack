@@ -64,7 +64,7 @@ Capybara.server = :puma, { Silent: true }
 Capybara.default_max_wait_time = 30
 
 RSpec.configure do |config|
-  config.fixture_paths = [Rails.root.join("spec/fixtures")]
+  config.fixture_paths = [ Rails.root.join("spec/fixtures") ]
   config.infer_spec_type_from_file_location!
   config.filter_rails_from_backtrace!
 

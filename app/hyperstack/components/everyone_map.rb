@@ -72,7 +72,7 @@ class EveryoneMap < HyperComponent
     tracker.locations
            .sort_by(&:id)
            .last(Location::TRAIL_LIMIT)
-           .map { |location| [location.lat, location.lng] }
+           .map { |location| [ location.lat, location.lng ] }
            .select { |point| point[0].is_a?(Numeric) && point[1].is_a?(Numeric) }
   end
 

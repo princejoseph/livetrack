@@ -84,12 +84,12 @@ class TrackMe < HyperComponent
   def status_line
     text, color =
       case @status
-      when :idle       then ["Not tracking", "#6b7280"]
-      when :locating   then ["Waiting for GPS...", "#b45309"]
-      when :tracking   then ["Live - #{@fix_count} fixes received", "#047857"]
-      when :simulating then ["Simulated movement - #{@fix_count} fixes", "#4338ca"]
-      when :error      then [@error.to_s, "#b91c1c"]
-      else ["", "#6b7280"]
+      when :idle       then [ "Not tracking", "#6b7280" ]
+      when :locating   then [ "Waiting for GPS...", "#b45309" ]
+      when :tracking   then [ "Live - #{@fix_count} fixes received", "#047857" ]
+      when :simulating then [ "Simulated movement - #{@fix_count} fixes", "#4338ca" ]
+      when :error      then [ @error.to_s, "#b91c1c" ]
+      else [ "", "#6b7280" ]
       end
 
     DIV(style: { fontSize: "1rem", color: color, marginBottom: "0.75rem", minHeight: "1.4rem" }) { text }
@@ -128,7 +128,7 @@ class TrackMe < HyperComponent
   def my_markers
     return [] unless @lat && @lng
 
-    [{
+    [ {
       id: "me",
       lat: @lat,
       lng: @lng,
@@ -138,7 +138,7 @@ class TrackMe < HyperComponent
       stale: false,
       me: true,
       trail: @trail || []
-    }]
+    } ]
   end
 
   # --- geolocation ----------------------------------------------------------
@@ -236,7 +236,7 @@ class TrackMe < HyperComponent
       @fix_at    = Time.now
       @fix_count = @fix_count.to_i + 1
       @error     = nil
-      @trail     = ((@trail || []) + [[lat, lng]]).last(Location::TRAIL_LIMIT)
+      @trail     = ((@trail || []) + [ [ lat, lng ] ]).last(Location::TRAIL_LIMIT)
     end
 
     persist(lat, lng, accuracy)
@@ -260,7 +260,7 @@ class TrackMe < HyperComponent
     end
 
     @last_write_at = now
-    @last_written  = [lat, lng]
+    @last_written  = [ lat, lng ]
 
     record = me
     record.lat         = lat

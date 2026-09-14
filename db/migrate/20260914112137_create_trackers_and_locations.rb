@@ -35,6 +35,6 @@ class CreateTrackersAndLocations < ActiveRecord::Migration[8.0]
 
       t.timestamps
     end
-    add_index :locations, [:tracker_id, :recorded_at]
+    add_index :locations, [ :tracker_id, :recorded_at ]
   end
 end

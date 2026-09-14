@@ -45,7 +45,7 @@ class Tracker < ApplicationRecord
     age.nil? || age > STALE_AFTER
   end
 
-  unless RUBY_ENGINE == 'opal'
+  unless RUBY_ENGINE == "opal"
     def self.generate_identity
       {
         name: "#{ADJECTIVES.sample} #{ANIMALS.sample}",

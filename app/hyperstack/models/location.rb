@@ -9,7 +9,7 @@ class Location < ApplicationRecord
 
   scope :newest_first, -> { order(recorded_at: :desc) }
 
-  unless RUBY_ENGINE == 'opal'
+  unless RUBY_ENGINE == "opal"
     validates :lat, presence: true,
                     numericality: { greater_than_or_equal_to: -90, less_than_or_equal_to: 90 }
     validates :lng, presence: true,

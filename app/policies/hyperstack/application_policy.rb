@@ -15,8 +15,8 @@ module Hyperstack
     # acting_user is the Tracker owned by the requesting session
     # (see ApplicationController#acting_user). A session may move its own
     # marker and append to its own trail, and nothing else.
-    allow_change(Tracker, on: [:update]) { acting_user && acting_user.id == id }
-    allow_change(Location, on: [:create]) { acting_user && acting_user.id == tracker_id }
+    allow_change(Tracker, on: [ :update ]) { acting_user && acting_user.id == id }
+    allow_change(Location, on: [ :create ]) { acting_user && acting_user.id == tracker_id }
 
     # Trackers are created server-side on first visit, and trail pruning runs
     # in an after_create callback -- neither is a client-initiated change, so

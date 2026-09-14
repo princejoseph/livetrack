@@ -29,4 +29,8 @@ test:
 # ensure the database is located in a persisted volume.
 production:
   <<: *default
-  # database: path/to/persistent/storage/production.sqlite3
+  # Must be a real path, not commented out: bin/docker-entrypoint always runs
+  # `db:prepare` before booting, which aborts with "No database file specified"
+  # otherwise. No Fly volume is mounted, so this is ephemeral and comes back
+  # empty on each boot -- which is fine, and arguably right, for live positions.
+  database: storage/production.sqlite3

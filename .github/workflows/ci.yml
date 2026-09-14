@@ -1,0 +1,67 @@
+name: CI
+
+# Pushes to main are covered by deploy.yml, which runs the same suite as a
+# gate before deploying -- so main is not built twice.
+on:
+  pull_request:
+  push:
+    branches-ignore: [ main ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+      - name: Lint
+        run: bin/rubocop --parallel
+
+  scan_ruby:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+      # Deliberately not bin/brakeman: that binstub hardcodes --ensure-latest,
+      # which fails permanently as soon as any newer Brakeman ships.
+      - name: Scan for security vulnerabilities
+        run: bundle exec brakeman --no-pager -c config/brakeman.yml
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install packages
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libyaml-dev sqlite3
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      # The system specs drive a real browser. Runners ship Chrome already;
+      # this pins a matching chromedriver rather than trusting whatever is on
+      # PATH (the failure mode that bin/rspec works around locally).
+      - uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+          install-chromedriver: true
+
+      - name: Run tests
+        env:
+          RAILS_ENV: test
+        run: bundle exec rspec
+
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capybara-screenshots
+          path: tmp/capybara
+          if-no-files-found: ignore

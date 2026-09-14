@@ -32,3 +32,9 @@
 
 # Ignore master key for decrypting credentials and more.
 /config/master.key
+
+# Build artifacts from opal-rails 3's opal:build task. That task is a no-op
+# here (config.opal.entrypoints = {}), but it still writes a manifest, and
+# app/assets/builds exists only to keep it happy.
+/app/assets/builds/*
+!/app/assets/builds/.keep

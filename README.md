@@ -47,6 +47,63 @@ without a reload.
 `bin/rspec` is a wrapper that resolves a chromedriver matching the installed Chrome
 before running, because Selenium Manager prefers a stale driver found on `PATH`.
 
+## CI and deploy
+
+- `.github/workflows/ci.yml` — rubocop, brakeman and the full spec suite, on
+  pull requests and pushes to non-`main` branches.
+- `.github/workflows/deploy.yml` — on push to `main`: runs the same suite, and
+  **only deploys to Fly if it passes** (`needs: test`).
+
+Deploying needs a `FLY_API_TOKEN` repository secret
+(`flyctl tokens create deploy`).
+
+> **This app must run as a single machine.** `config/cable.yml` uses the
+> in-process `async` ActionCable adapter, so a broadcast raised on one machine
+> only reaches clients connected to that same machine. `fly.toml` pins
+> `min_machines_running = 1` / `max_machines_running = 1`. Going wider means
+> adding Redis and switching the production cable adapter.
+
+SQLite lives on the ephemeral filesystem with no volume mounted — live
+positions have no value after a restart, so the DB is recreated empty on each
+boot.
+
+### Container gotchas worth knowing
+
+The `Dockerfile` that `rails new` generates does not work for this app. Four changes:
+
+1. **Keep `.git` in the git-sourced gems, and install `git` in the runtime
+   stage.** The generated file deletes `"${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git`
+   and only installs `git` in the throwaway build stage. But Bundler re-derives
+   every git-sourced gem's spec on *every* process boot, not just at install
+   time — and all eight Hyperstack gems come from git. Without both, the
+   process dies before Rails loads.
+2. **`git config --system --add safe.directory '*'`.** Those gem checkouts are
+   owned by root while the app runs as uid 1000, so git refuses with
+   "detected dubious ownership" and boot fails.
+3. **Add `assets:precompile`.** The app was generated with
+   `--skip-asset-pipeline`, so the generated Dockerfile has no precompile step,
+   and sprockets-rails sets `config.assets.compile = false` in production.
+4. **`config.opal.entrypoints = {}` plus an empty `app/opal/`.** opal-rails 3
+   is an unavoidable *runtime* dependency of `rails-hyperstack`, and its
+   railtie makes `opal:build` a prerequisite of `assets:precompile`; its
+   resolver raises `MissingEntrypointError` unless `app/opal` exists. This
+   breaks production asset precompilation and nothing else, so it only shows
+   up at deploy time.
+
+Verify the image locally rather than round-tripping through `fly deploy`:
+
+```bash
+docker build -t livetrack .
+docker run --rm -p 8080:80 -e RAILS_MASTER_KEY="$(cat config/master.key)" livetrack
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/me
+```
+
+Note that `/cable` returns **404 over plain HTTP locally**. That is not a bug:
+`config.assume_ssl` makes Rails treat requests as secure, so ActionCable's
+same-origin check expects an `https://` Origin and rejects an `http://` one
+with 404. With a correct Origin the handshake returns 101, and behind Fly's
+TLS it matches normally.
+
 ## Layout
 
 | Path | Purpose |

@@ -7,7 +7,9 @@ development:
 test:
   adapter: async
 
+# async keeps broadcasts in-process, which is correct for a single-machine
+# deploy and needs no Redis. If this ever scales past one process, every
+# process needs a shared adapter (redis) or clients will only see the
+# broadcasts raised by the process they happen to be connected to.
 production:
-  adapter: redis
-  url: <%= ENV.fetch("REDIS_URL") { "redis://localhost:6379/1" } %>
-  channel_prefix: livetrack_production
+  adapter: async
