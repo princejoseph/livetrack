@@ -1,5 +1,7 @@
 # Livetrack
 
+**Live at https://livetrack.fly.dev**
+
 Live GPS tracking built with **Rails 8 + Hyperstack**. Two pages:
 
 - **`/me` — Track me.** Watches this browser's GPS (`navigator.geolocation.watchPosition`)
@@ -55,7 +57,18 @@ before running, because Selenium Manager prefers a stale driver found on `PATH`.
   **only deploys to Fly if it passes** (`needs: test`).
 
 Deploying needs a `FLY_API_TOKEN` repository secret
-(`flyctl tokens create deploy`).
+(`flyctl tokens create deploy`) and `RAILS_MASTER_KEY` set as a Fly secret.
+The deploy step skips with a warning if the token is absent, so the test gate
+stays useful in forks.
+
+Two Fly-specific things that are easy to lose:
+
+- **Run exactly one machine** (`flyctl scale count 1`). `fly launch` creates
+  two, and `max_machines_running` does not prevent that.
+- **Thruster listens on 8080, not 80.** The container runs as a non-root user
+  and cannot bind a privileged port on Fly — though it *can* under Docker
+  Desktop, whose VM sets `net.ipv4.ip_unprivileged_port_start=0`, so a
+  passing local container proves nothing here.
 
 > **This app must run as a single machine.** `config/cable.yml` uses the
 > in-process `async` ActionCable adapter, so a broadcast raised on one machine
