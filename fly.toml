@@ -15,8 +15,9 @@ console_command = '/rails/bin/rails console'
 
 [http_service]
   # Thruster listens here and proxies to Puma, serving the ~2.5MB Opal bundle
-  # gzipped and with far-future caching.
-  internal_port = 80
+  # gzipped and with far-future caching. Above 1024 because the container runs
+  # as a non-root user and cannot bind a privileged port (see Dockerfile).
+  internal_port = 8080
   force_https = true
   auto_stop_machines = false
   auto_start_machines = true

@@ -87,6 +87,15 @@ USER 1000:1000
 # Entrypoint prepares the database.
 ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 
+# Thruster listens here rather than on the generated default of 80: this
+# container runs as uid 1000, and binding a port below 1024 needs root or
+# CAP_NET_BIND_SERVICE, so on Fly it dies with
+# "Failed to start HTTP listener ... listen tcp :80: bind: permission denied"
+# and the machine restart-loops. It does not fail under Docker Desktop, whose
+# Linux VM sets net.ipv4.ip_unprivileged_port_start=0 -- which is exactly why
+# the image passed local testing. fly.toml's internal_port must match.
+ENV HTTP_PORT=8080
+
 # Start server via Thruster by default, this can be overwritten at runtime
-EXPOSE 80
+EXPOSE 8080
 CMD ["./bin/thrust", "./bin/rails", "server"]
