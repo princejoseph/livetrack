@@ -5,12 +5,6 @@ require "rails_helper"
 # ActionCable. Geolocation itself is replaced by the app's own "Simulate
 # movement" mode -- a real GPS fix is not available (or repeatable) in CI.
 RSpec.describe "Live tracking", type: :system do
-  # "#7c3aed" -> "rgb(124, 58, 237)"
-  def rgb_of(hex)
-    parts = hex.delete("#").scan(/../).map { |pair| pair.to_i(16) }
-    "rgb(#{parts.join(', ')})"
-  end
-
   it "renders the tracking page with the map and an identity" do
     visit "/me"
 
@@ -252,9 +246,11 @@ RSpec.describe "Live tracking", type: :system do
       visit "/everyone"
       expect(page).to have_content("1 tracking now", wait: 40)
 
-      pin = find(".lt-pin span", match: :first, wait: 40)
-      # Chrome reports the style attribute with colours normalised to rgb().
-      expect(pin[:style]).to include(rgb_of(expected.color))
+      # A retrying matcher, not find-then-read: the map replaces the icon
+      # element when the real colour arrives, so a pin found a moment earlier
+      # can be detached by the time its style is read (seen flaking in CI).
+      # The attribute selector sees the icon's HTML as written (hex colour).
+      expect(page).to have_css(".lt-pin span[style*='#{expected.color}']", wait: 40)
 
       expect(page).to have_css(".leaflet-tooltip", text: expected.name, wait: 40)
     end
