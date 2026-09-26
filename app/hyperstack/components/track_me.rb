@@ -104,6 +104,7 @@ class TrackMe < HyperComponent
         }) do
       stat("Latitude",  Geo.format_coord(@lat))
       stat("Longitude", Geo.format_coord(@lng))
+      stat("Altitude",  Geo.format_altitude(@altitude))
       stat("Accuracy",  @accuracy ? "#{@accuracy.round} m" : "--")
       stat("Last fix",  @fix_at ? "#{(Time.now - @fix_at).to_i}s ago" : "--")
     end
@@ -169,10 +170,14 @@ class TrackMe < HyperComponent
         var component = #{self};
         return navigator.geolocation.watchPosition(
           function (position) {
+            // Altitude is null on devices without it (most desktops); JS
+            // null is not Opal's nil, so convert it before it reaches Ruby.
+            var altitude = position.coords.altitude;
             component.$on_fix(
               position.coords.latitude,
               position.coords.longitude,
-              position.coords.accuracy
+              position.coords.accuracy,
+              altitude == null ? #{nil} : altitude
             );
           },
           function (failure) {
@@ -203,16 +208,21 @@ class TrackMe < HyperComponent
     end
 
     @sim_metres = 0
-    on_fix(*SimRoute.position_at(0), 12.0)
+    simulated_fix
 
     @sim_timer = every(1) do
       @sim_metres += SIM_METRES_PER_TICK
-      on_fix(*SimRoute.position_at(@sim_metres), 12.0)
+      simulated_fix
       if @sim_metres >= SimRoute.length_meters
         @sim_timer.abort
         @sim_timer = nil
       end
     end
+  end
+
+  def simulated_fix
+    lat, lng, altitude = SimRoute.position_at(@sim_metres)
+    on_fix(lat, lng, 12.0, altitude)
   end
 
   def stop
@@ -231,19 +241,20 @@ class TrackMe < HyperComponent
   end
 
   # Called from the geolocation callback (and the simulator).
-  def on_fix(lat, lng, accuracy)
+  def on_fix(lat, lng, accuracy, altitude = nil)
     mutate do
       @status    = simulating? ? :simulating : :tracking
       @lat       = lat
       @lng       = lng
       @accuracy  = accuracy
+      @altitude  = altitude
       @fix_at    = Time.now
       @fix_count = @fix_count.to_i + 1
       @error     = nil
       @trail     = ((@trail || []) + [ [ lat, lng ] ]).last(Location::TRAIL_LIMIT)
     end
 
-    persist(lat, lng, accuracy)
+    persist(lat, lng, accuracy, altitude)
   end
 
   def on_error(message)
@@ -255,7 +266,7 @@ class TrackMe < HyperComponent
 
   # --- writing through to the server ---------------------------------------
 
-  def persist(lat, lng, accuracy)
+  def persist(lat, lng, accuracy, altitude)
     now = Time.now
     if @last_write_at
       elapsed = now - @last_write_at
@@ -270,13 +281,14 @@ class TrackMe < HyperComponent
     record.lat         = lat
     record.lng         = lng
     record.accuracy    = accuracy
+    record.altitude    = altitude
     record.last_fix_at = now
     record.tracking    = true
     record.save
 
     Location.new(
       tracker: record, lat: lat, lng: lng,
-      accuracy: accuracy, recorded_at: now
+      accuracy: accuracy, altitude: altitude, recorded_at: now
     ).save
   end
 

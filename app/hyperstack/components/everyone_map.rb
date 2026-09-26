@@ -105,7 +105,9 @@ class EveryoneMap < HyperComponent
             tracker.id == me.id ? "#{tracker.name} (you)" : tracker.name
           end
           SPAN(style: { fontSize: "0.9rem", color: "#6b7280" }) do
-            "#{Geo.format_coord(tracker.lat)}, #{Geo.format_coord(tracker.lng)}"
+            coords = "#{Geo.format_coord(tracker.lat)}, #{Geo.format_coord(tracker.lng)}"
+            altitude = tracker.altitude
+            altitude.is_a?(Numeric) ? "#{coords} · #{Geo.format_altitude(altitude)}" : coords
           end
           SPAN(style: { marginLeft: "auto", fontSize: "0.9rem", color: "#6b7280" }) do
             "#{age_of(tracker)}s ago"

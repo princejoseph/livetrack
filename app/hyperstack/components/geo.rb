@@ -21,4 +21,11 @@ module Geo
 
     format("%.5f", value)
   end
+
+  # Metres above sea level, or "--" when the device reported none.
+  def self.format_altitude(value)
+    return "--" unless value.is_a?(Numeric)
+
+    "#{value.round} m"
+  end
 end

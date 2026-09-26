@@ -38,7 +38,33 @@ RSpec.describe "Live tracking", type: :system do
     # Somewhere on the simulated Oceanside -> Vista drive.
     expect(tracker.lat).to be_within(0.02).of(33.185)
     expect(tracker.lng).to be_within(0.03).of(-117.296)
+    # Ground elevation along the route is 39-88 m.
+    expect(tracker.altitude).to be_between(30, 100)
+    expect(tracker.locations.last.altitude).to be_between(30, 100)
     expect(tracker.locations.count).to be >= 1
+
+    # ...and it is shown in the readout.
+    expect(page).to have_content(/Altitude\s*\d+ m/)
+  end
+
+  it "tracks real GPS fixes that carry no altitude" do
+    visit "/me"
+    expect(page).to have_css(".leaflet-container", wait: 30)
+
+    # Most desktops report altitude as null. Stub the Geolocation API with
+    # such a fix: JS null must not reach Ruby as a non-nil object.
+    execute_script(<<~JS)
+      navigator.geolocation.watchPosition = function (success) {
+        success({ coords: { latitude: 33.2, longitude: -117.3, accuracy: 20, altitude: null } });
+        return 1;
+      };
+    JS
+    click_button "Start tracking"
+
+    expect(page).to have_content(/Live - \d+ fixes received/, wait: 30)
+    expect(page).to have_content(/Altitude\s*--/)
+    expect { Tracker.live.any? }.to eventually_be_truthy
+    expect(Tracker.live.first.altitude).to be_nil
   end
 
   it "draws a trail as more fixes arrive" do
@@ -156,6 +182,8 @@ RSpec.describe "Live tracking", type: :system do
       expect(page).to have_content("1 tracking now", wait: 40)
       # The observer sees the mover by name, and is not itself the mover.
       expect(page).to have_content(mover_name, wait: 40)
+      # The roster carries the mover's altitude alongside the coordinates.
+      expect(page).to have_content(/· \d+ m/, wait: 40)
       expect(page).not_to have_content("#{mover_name} (you)")
     end
   end
