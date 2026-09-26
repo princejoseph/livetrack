@@ -33,6 +33,14 @@ RSpec.describe RoutePlanner do
     expect(result[:to_label]).to eq("Finish, Vista")
   end
 
+  it "does not geocode an end whose coordinates are already known" do
+    result = planner.plan("Oceanside Pier", "finish", from_point: [ 33.18, -117.30 ])
+
+    expect(planner).not_to have_received(:get_json).with(RoutePlanner::NOMINATIM, hash_including(q: "Oceanside Pier"))
+    expect(result[:from_label]).to eq("Oceanside Pier")
+    expect(result[:points].first).to eq([ 33.18, -117.30, 50.0 ])
+  end
+
   it "explains an address it cannot find" do
     allow(planner).to receive(:get_json).with(RoutePlanner::NOMINATIM, anything).and_return([])
     expect { planner.plan("nowhere", "finish") }.to raise_error(RoutePlanner::Error, /Couldn't find "nowhere"/)

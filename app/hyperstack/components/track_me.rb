@@ -78,30 +78,26 @@ class TrackMe < HyperComponent
 
   # Where "Simulate movement" drives. Locked while a drive is under way so the
   # boxes always describe the route being shown.
+  #
+  # A picked suggestion remembers its coordinates (@from_point / @to_point)
+  # so the server need not geocode it; any later edit drops them again,
+  # because the text no longer describes that place.
   def route_form
     locked = simulating? || routing?
     DIV(style: { display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.75rem" }) do
-      address_input("Drive from", @from, locked) { |value| mutate @from = value }
-      address_input("Drive to", @to, locked) { |value| mutate @to = value }
+      AddressInput(label: "Drive from", value: @from, locked: locked, near: suggestion_bias)
+        .on(:text_change) { |text| mutate(@from = text, @from_point = nil) }
+        .on(:pick) { |place| mutate(@from = place["label"], @from_point = [ place["lat"], place["lng"] ]) }
+      AddressInput(label: "Drive to", value: @to, locked: locked, near: suggestion_bias)
+        .on(:text_change) { |text| mutate(@to = text, @to_point = nil) }
+        .on(:pick) { |place| mutate(@to = place["label"], @to_point = [ place["lat"], place["lng"] ]) }
     end
   end
 
-  def address_input(label, value, locked, &on_change)
-    LABEL(style: {
-            flex: "1 1 260px", display: "flex", flexDirection: "column",
-            gap: "0.25rem", fontSize: "0.85rem", color: "#6b7280"
-          }) do
-      SPAN { label }
-      INPUT(
-        type: :text, value: value, disabled: locked,
-        style: {
-          # 1rem or larger: iOS Safari zooms the page into smaller inputs.
-          fontSize: "1rem", padding: "0.55rem 0.7rem", color: "#111827",
-          border: "1px solid #d1d5db", borderRadius: "10px",
-          background: locked ? "#f3f4f6" : "#fff"
-        }
-      ).on(:change) { |event| on_change.call(event.target.value) }
-    end
+  # Rank suggestions around where this browser is, or failing that the start
+  # of the default drive.
+  def suggestion_bias
+    @lat.is_a?(Numeric) && @lng.is_a?(Numeric) ? [ @lat, @lng ] : SimRoute::POINTS.first[0..1]
   end
 
   def button(label, color, &handler)
@@ -239,7 +235,7 @@ class TrackMe < HyperComponent
   # else is planned by the server first.
   def start_simulation
     stop_watch
-    if SimRoute.default?(@from, @to)
+    if SimRoute.default?(@from, @to) && !@from_point && !@to_point
       drive(SimRoute::POINTS)
     else
       fetch_route
@@ -253,6 +249,8 @@ class TrackMe < HyperComponent
     end
 
     url = "/route?from=#{`encodeURIComponent(#{@from})`}&to=#{`encodeURIComponent(#{@to})`}"
+    url += "&from_lat=#{@from_point[0]}&from_lng=#{@from_point[1]}" if @from_point
+    url += "&to_lat=#{@to_point[0]}&to_lng=#{@to_point[1]}" if @to_point
     # Error responses carry JSON too ({ error: "..." }), so read the body
     # whatever the status and let on_route sort it out.
     %x{

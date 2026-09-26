@@ -30,15 +30,17 @@ class RoutePlanner
   # Process-wide (one machine), guarded by NOMINATIM_LOCK.
   NOMINATIM_LAST = { at: 0.0 }
 
-  def self.plan(from, to)
-    key = [ "route", from.strip.downcase, to.strip.downcase ].join("|")
-    Rails.cache.fetch(key, expires_in: 1.week) { new.plan(from, to) }
+  # +from_point+ / +to_point+ ([lat, lng]) come from a picked autocomplete
+  # suggestion: that end is already located, so it is not geocoded again.
+  def self.plan(from, to, from_point: nil, to_point: nil)
+    key = [ "route", from.strip.downcase, from_point, to.strip.downcase, to_point ].flatten.join("|")
+    Rails.cache.fetch(key, expires_in: 1.week) { new.plan(from, to, from_point:, to_point:) }
   end
 
   # => { points: [[lat, lng, altitude], ...], distance_m:, from_label:, to_label: }
-  def plan(from, to)
-    start  = geocode(from)
-    finish = geocode(to)
+  def plan(from, to, from_point: nil, to_point: nil)
+    start  = from_point ? located(from, from_point) : geocode(from)
+    finish = to_point ? located(to, to_point) : geocode(to)
     route  = route_between(start, finish)
     points = thin(route[:coordinates])
 
@@ -51,6 +53,10 @@ class RoutePlanner
   end
 
   private
+
+  def located(address, (lat, lng))
+    { lat: lat, lng: lng, label: address }
+  end
 
   def geocode(address)
     raise Error, "Enter both a start and an end address." if address.blank?

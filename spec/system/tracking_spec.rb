@@ -73,11 +73,58 @@ RSpec.describe "Live tracking", type: :system do
       click_button "Simulate movement"
 
       expect(page).to have_content(/Simulated movement - \d+ fixes/, wait: 30)
-      expect(RoutePlanner).to have_received(:plan).with("Times Square, New York", "Bryant Park, New York")
+      expect(RoutePlanner).to have_received(:plan)
+        .with("Times Square, New York", "Bryant Park, New York", from_point: nil, to_point: nil)
       expect { Tracker.live.any? }.to eventually_be_truthy
       expect(Tracker.live.first.lat).to be_within(0.01).of(40.758)
       # The boxes are locked while the drive is under way.
       expect(page).to have_field("Drive from", disabled: true)
+    end
+
+    it "suggests addresses as you type, and drives from the one picked" do
+      allow(AddressSuggester).to receive(:suggest).and_return([
+        { label: "Oceanside Pier, Oceanside, California", lat: 33.1943, lng: -117.3844 },
+        { label: "Oceanside Pier Way, Oceanside, California", lat: 33.1953, lng: -117.3827 }
+      ])
+      allow(RoutePlanner).to receive(:plan).and_return(
+        { points: [ [ 33.1943, -117.3844, 4.0 ], [ 33.1950, -117.3800, 6.0 ] ] }
+      )
+
+      visit "/me"
+      expect(page).to have_css(".leaflet-container", wait: 30)
+      fill_in "Drive from", with: "oceanside pi"
+
+      expect(page).to have_css(".lt-suggestion", count: 2, wait: 30)
+      # Ranked around the start of the default drive until there is a fix.
+      expect(AddressSuggester).to have_received(:suggest).with("oceanside pi", near: [ 33.18215, -117.3075 ])
+
+      find(".lt-suggestion", text: "Oceanside Pier Way").click
+      expect(page).to have_field("Drive from", with: "Oceanside Pier Way, Oceanside, California")
+      expect(page).to have_no_css(".lt-suggestion")
+
+      click_button "Simulate movement"
+      expect(page).to have_content(/Simulated movement - \d+ fixes/, wait: 30)
+      # The picked place's coordinates went along, so it was not re-geocoded.
+      expect(RoutePlanner).to have_received(:plan).with(
+        "Oceanside Pier Way, Oceanside, California", "260 Cedar Rd, Vista, CA 92083",
+        from_point: [ 33.1953, -117.3827 ], to_point: nil
+      )
+    end
+
+    it "lets a suggestion be chosen from the keyboard" do
+      allow(AddressSuggester).to receive(:suggest).and_return([
+        { label: "Vista Village, Vista, California", lat: 33.2003, lng: -117.2425 },
+        { label: "Vista Way, Oceanside, California", lat: 33.1810, lng: -117.3200 }
+      ])
+
+      visit "/me"
+      expect(page).to have_css(".leaflet-container", wait: 30)
+      box = find_field("Drive to")
+      box.fill_in(with: "vista")
+      expect(page).to have_css(".lt-suggestion", count: 2, wait: 30)
+
+      box.send_keys(:down, :down, :enter)
+      expect(page).to have_field("Drive to", with: "Vista Way, Oceanside, California")
     end
 
     it "shows why a route could not be planned" do
