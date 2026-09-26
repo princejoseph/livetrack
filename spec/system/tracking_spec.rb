@@ -35,8 +35,9 @@ RSpec.describe "Live tracking", type: :system do
     # ...and it reached the database through HyperModel, not just local state.
     expect { Tracker.live.any? }.to eventually_be_truthy
     tracker = Tracker.live.first
-    expect(tracker.lat).to be_within(0.5).of(12.9716)
-    expect(tracker.lng).to be_within(0.5).of(77.5946)
+    # Somewhere on the simulated Oceanside -> Vista drive.
+    expect(tracker.lat).to be_within(0.02).of(33.185)
+    expect(tracker.lng).to be_within(0.03).of(-117.296)
     expect(tracker.locations.count).to be >= 1
   end
 
@@ -48,6 +49,19 @@ RSpec.describe "Live tracking", type: :system do
 
     # The polyline only gets a rendered path once it has two or more points.
     expect(page).to have_css("path.leaflet-interactive", wait: 40)
+  end
+
+  it "keeps the map panned onto the pin while the simulation drives" do
+    visit "/me"
+    expect(page).to have_css(".leaflet-container", wait: 30)
+    click_button "Simulate movement"
+    expect(page).to have_css(".lt-pin", wait: 30)
+
+    # panTo moves the map pane; without following it would sit still after
+    # the initial framing while the pin drove away.
+    pane_offset = -> { evaluate_script("document.querySelector('.leaflet-map-pane').style.transform") }
+    first = pane_offset.call
+    expect { pane_offset.call != first }.to eventually_be_truthy
   end
 
   it "stops reporting when tracking is stopped" do

@@ -9,6 +9,9 @@ class LeafletMap < HyperComponent
   param :markers, default: []
   param :map_height, default: "60vh"
   param :empty_message, default: "Waiting for a position fix..."
+  # Keep the view panned onto the `me:` marker as it moves. Dragging the map
+  # suspends following (so it does not fight the user); Recenter resumes it.
+  param :follow, default: false
 
   # Zoom used when focusing on a single marker; a whole-group fit picks its own.
   SOLO_ZOOM = 16
@@ -82,10 +85,16 @@ class LeafletMap < HyperComponent
 
     @layers = {}
     @fitted = false
+    @user_panned = false
 
     @map = `L.map(#{@node}, { zoomControl: true, attributionControl: true })`
     # A world view until the first fix arrives, so the tiles are never blank.
     `#{@map}.setView([20.0, 10.0], 2)`
+
+    # A proc, not a lambda: Leaflet passes the event, and Opal lambdas are
+    # strict about arity.
+    on_drag = proc { |_event| @user_panned = true }
+    `#{@map}.on('dragstart', #{on_drag})`
 
     tiles = `L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' })`
     `#{tiles}.addTo(#{@map})`
@@ -152,6 +161,7 @@ class LeafletMap < HyperComponent
     (@layers.keys - present).each { |id| destroy_layer(@layers.delete(id)) }
 
     fit_once
+    follow_me
   end
 
   def create_layer(marker)
@@ -243,8 +253,19 @@ class LeafletMap < HyperComponent
     recenter
   end
 
+  # Pans rather than re-fits, so whatever zoom the user picked is kept.
+  def follow_me
+    return unless follow
+    return if @user_panned
+
+    target = markers.find { |marker| marker[:me] && placed?(marker) }
+    `#{@map}.panTo(#{latlng(target)}, { animate: true, duration: 0.5 })` if target
+  end
+
   def recenter
     return unless @map
+
+    @user_panned = false
 
     placed = markers.select { |marker| placed?(marker) }
     return if placed.empty?

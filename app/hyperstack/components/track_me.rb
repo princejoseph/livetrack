@@ -43,6 +43,7 @@ class TrackMe < HyperComponent
       LeafletMap(
         markers: my_markers,
         map_height: "58vh",
+        follow: simulating?,
         empty_message: @status == :idle ? "Press Start tracking to begin." : "Waiting for a position fix..."
       )
 
@@ -187,8 +188,13 @@ class TrackMe < HyperComponent
     `!!(navigator.geolocation && navigator.geolocation.watchPosition)`
   end
 
-  # Walks a small circle so the app can be demonstrated (and specced) on a
-  # desktop with no GPS, or where the location permission is denied.
+  # Metres covered per one-second tick: about 90 km/h, so the whole drive
+  # takes under three minutes -- quick enough to demo.
+  SIM_METRES_PER_TICK = 25
+
+  # Drives SimRoute so the app can be demonstrated (and specced) on a desktop
+  # with no GPS, or where the location permission is denied. Stops sending
+  # fixes once it reaches the destination and stays parked there.
   def start_simulation
     stop_watch
     mutate do
@@ -196,18 +202,16 @@ class TrackMe < HyperComponent
       @error  = nil
     end
 
-    @sim_step = 0
-    base_lat  = @lat || 12.9716   # Bengaluru
-    base_lng  = @lng || 77.5946
+    @sim_metres = 0
+    on_fix(*SimRoute.position_at(0), 12.0)
 
-    @sim_timer = every(2) do
-      @sim_step += 1
-      radius = 0.0012
-      on_fix(
-        base_lat + (radius * Math.sin(@sim_step / 6.0)),
-        base_lng + (radius * Math.cos(@sim_step / 6.0)),
-        12.0
-      )
+    @sim_timer = every(1) do
+      @sim_metres += SIM_METRES_PER_TICK
+      on_fix(*SimRoute.position_at(@sim_metres), 12.0)
+      if @sim_metres >= SimRoute.length_meters
+        @sim_timer.abort
+        @sim_timer = nil
+      end
     end
   end
 
