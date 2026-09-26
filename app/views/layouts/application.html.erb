@@ -8,8 +8,13 @@
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
+    <meta name="apple-mobile-web-app-title" content="Livetrack">
+    <meta name="theme-color" content="#047857">
+
+    <link rel="icon" href="/favicon.ico" sizes="48x48">
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/icon.png">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="<%= pwa_manifest_path(format: :json) %>">
 
     <%= stylesheet_link_tag "application" %>
 
