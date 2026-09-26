@@ -1,5 +1,5 @@
-# backtick_javascript: true
-# A text box with search-as-you-type address suggestions (GET /suggest).
+# A text box with search-as-you-type address suggestions (the
+# SuggestAddresses ServerOp).
 #
 # The typed text stays authoritative: suggestions are an aid, and an address
 # typed in full (a US house number Photon does not know, say) still works --
@@ -110,27 +110,15 @@ class AddressInput < HyperComponent
     @debounce = after(DEBOUNCE) { fetch_suggestions(text, seq) }
   end
 
+  # Suggestions are best-effort: a failed request just means no list.
   def fetch_suggestions(text, seq)
-    url = "/suggest?q=#{`encodeURIComponent(#{text})`}"
-    url += "&lat=#{near[0]}&lng=#{near[1]}" if near
-    # Suggestions are best-effort: any failure just means no list.
-    %x{
-      var component = #{self};
-      fetch(#{url}, { headers: { Accept: 'application/json' } })
-        .then(function (response) { return response.ok ? response.text() : '[]'; })
-        .then(function (text) { component.$on_suggestions(text, #{seq}); })
-        .catch(function () {});
-    }
+    SuggestAddresses.run(query: text, near: near)
+                    .then { |list| on_suggestions(list, seq) }
   end
 
-  def on_suggestions(text, seq)
+  def on_suggestions(list, seq)
     return unless seq == @seq
 
-    list = begin
-      JSON.parse(text)
-    rescue StandardError
-      []
-    end
     list = [] unless list.is_a?(Array)
 
     mutate do

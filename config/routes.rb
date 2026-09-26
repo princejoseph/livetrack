@@ -5,8 +5,6 @@ Rails.application.routes.draw do
   root "maps#me"
   get "me"       => "maps#me",       as: :me
   get "everyone" => "maps#everyone", as: :everyone
-  get "route"    => "routes#show",     as: :route
-  get "suggest"  => "suggestions#index", as: :suggest
 
   get "up" => "rails/health#show", as: :rails_health_check
   get "manifest" => "rails/pwa#manifest", as: :pwa_manifest

@@ -30,6 +30,15 @@ class RoutePlanner
   # Process-wide (one machine), guarded by NOMINATIM_LOCK.
   NOMINATIM_LAST = { at: 0.0 }
 
+  # [lat, lng] if +value+ is a plausible coordinate pair, else nil. Points
+  # arrive from the browser, so they are checked rather than trusted.
+  def self.point(value)
+    return unless value.is_a?(Array) && value.length == 2
+
+    lat, lng = value.map { |v| Float(v, exception: false) }
+    [ lat, lng ] if lat&.between?(-90, 90) && lng&.between?(-180, 180)
+  end
+
   # +from_point+ / +to_point+ ([lat, lng]) come from a picked autocomplete
   # suggestion: that end is already located, so it is not geocoded again.
   def self.plan(from, to, from_point: nil, to_point: nil)

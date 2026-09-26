@@ -248,33 +248,20 @@ class TrackMe < HyperComponent
       @error  = nil
     end
 
-    url = "/route?from=#{`encodeURIComponent(#{@from})`}&to=#{`encodeURIComponent(#{@to})`}"
-    url += "&from_lat=#{@from_point[0]}&from_lng=#{@from_point[1]}" if @from_point
-    url += "&to_lat=#{@to_point[0]}&to_lng=#{@to_point[1]}" if @to_point
-    # Error responses carry JSON too ({ error: "..." }), so read the body
-    # whatever the status and let on_route sort it out.
-    %x{
-      var component = #{self};
-      fetch(#{url}, { headers: { Accept: 'application/json' } })
-        .then(function (response) { return response.text(); })
-        .then(function (text) { component.$on_route(text); })
-        .catch(function () { component.$on_route_error("Couldn't reach the server -- check your connection."); });
-    }
+    # Expected failures arrive as { error: } in the result; .fail is only for
+    # the request itself failing (network, or a genuine server error).
+    PlanRoute.run(from: @from, to: @to, from_point: @from_point, to_point: @to_point)
+             .then { |route| on_route(route) }
+             .fail { on_route_error("Couldn't plan that route -- check your connection and try again.") }
   end
 
-  def on_route(text)
+  def on_route(route)
     # Stopped (or restarted) while the lookup was in flight.
     return unless routing?
+    return on_route_error("Couldn't plan that route -- try again.") unless route.is_a?(Hash)
+    return on_route_error(route["error"]) if route["error"]
 
-    data = begin
-      JSON.parse(text)
-    rescue StandardError
-      nil
-    end
-    return on_route_error("Couldn't plan that route -- try again.") unless data.is_a?(Hash)
-    return on_route_error(data["error"]) if data["error"]
-
-    drive(data["points"])
+    drive(route["points"])
   end
 
   def on_route_error(message)
