@@ -15,6 +15,8 @@ class TrackMe < HyperComponent
     @status   = :idle
     @fix_count = 0
     @error    = nil
+    @from     = SimRoute::DEFAULT_FROM
+    @to       = SimRoute::DEFAULT_TO
   end
 
   after_mount do
@@ -38,6 +40,7 @@ class TrackMe < HyperComponent
       end
 
       controls
+      route_form
       status_line
 
       LeafletMap(
@@ -65,11 +68,39 @@ class TrackMe < HyperComponent
         button("Start tracking", "#047857") { start }
       end
 
-      if simulating?
+      if simulating? || routing?
         button("Stop simulation", "#b91c1c") { stop }
       else
         button("Simulate movement", "#4338ca") { start_simulation }
       end
+    end
+  end
+
+  # Where "Simulate movement" drives. Locked while a drive is under way so the
+  # boxes always describe the route being shown.
+  def route_form
+    locked = simulating? || routing?
+    DIV(style: { display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.75rem" }) do
+      address_input("Drive from", @from, locked) { |value| mutate @from = value }
+      address_input("Drive to", @to, locked) { |value| mutate @to = value }
+    end
+  end
+
+  def address_input(label, value, locked, &on_change)
+    LABEL(style: {
+            flex: "1 1 260px", display: "flex", flexDirection: "column",
+            gap: "0.25rem", fontSize: "0.85rem", color: "#6b7280"
+          }) do
+      SPAN { label }
+      INPUT(
+        type: :text, value: value, disabled: locked,
+        style: {
+          # 1rem or larger: iOS Safari zooms the page into smaller inputs.
+          fontSize: "1rem", padding: "0.55rem 0.7rem", color: "#111827",
+          border: "1px solid #d1d5db", borderRadius: "10px",
+          background: locked ? "#f3f4f6" : "#fff"
+        }
+      ).on(:change) { |event| on_change.call(event.target.value) }
     end
   end
 
@@ -87,6 +118,7 @@ class TrackMe < HyperComponent
       case @status
       when :idle       then [ "Not tracking", "#6b7280" ]
       when :locating   then [ "Waiting for GPS...", "#b45309" ]
+      when :routing    then [ "Finding a route...", "#4338ca" ]
       when :tracking   then [ "Live - #{@fix_count} fixes received", "#047857" ]
       when :simulating then [ "Simulated movement - #{@fix_count} fixes", "#4338ca" ]
       when :error      then [ @error.to_s, "#b91c1c" ]
@@ -125,6 +157,10 @@ class TrackMe < HyperComponent
 
   def simulating?
     @status == :simulating
+  end
+
+  def routing?
+    @status == :routing
   end
 
   def my_markers
@@ -193,27 +229,80 @@ class TrackMe < HyperComponent
     `!!(navigator.geolocation && navigator.geolocation.watchPosition)`
   end
 
-  # Metres covered per one-second tick: about 90 km/h, so the whole drive
+  # Metres covered per one-second tick: about 90 km/h, so the default drive
   # takes under three minutes -- quick enough to demo.
   SIM_METRES_PER_TICK = 25
 
-  # Drives SimRoute so the app can be demonstrated (and specced) on a desktop
-  # with no GPS, or where the location permission is denied. Stops sending
-  # fixes once it reaches the destination and stays parked there.
+  # Drives between the two addresses so the app can be demonstrated (and
+  # specced) on a desktop with no GPS, or where the location permission is
+  # denied. The default pair uses the route baked into SimRoute; anything
+  # else is planned by the server first.
   def start_simulation
     stop_watch
+    if SimRoute.default?(@from, @to)
+      drive(SimRoute::POINTS)
+    else
+      fetch_route
+    end
+  end
+
+  def fetch_route
     mutate do
-      @status = :simulating
+      @status = :routing
       @error  = nil
     end
 
+    url = "/route?from=#{`encodeURIComponent(#{@from})`}&to=#{`encodeURIComponent(#{@to})`}"
+    # Error responses carry JSON too ({ error: "..." }), so read the body
+    # whatever the status and let on_route sort it out.
+    %x{
+      var component = #{self};
+      fetch(#{url}, { headers: { Accept: 'application/json' } })
+        .then(function (response) { return response.text(); })
+        .then(function (text) { component.$on_route(text); })
+        .catch(function () { component.$on_route_error("Couldn't reach the server -- check your connection."); });
+    }
+  end
+
+  def on_route(text)
+    # Stopped (or restarted) while the lookup was in flight.
+    return unless routing?
+
+    data = begin
+      JSON.parse(text)
+    rescue StandardError
+      nil
+    end
+    return on_route_error("Couldn't plan that route -- try again.") unless data.is_a?(Hash)
+    return on_route_error(data["error"]) if data["error"]
+
+    drive(data["points"])
+  end
+
+  def on_route_error(message)
+    return unless routing?
+
+    on_error(message)
+  end
+
+  # Walks +points+ ([lat, lng, altitude] each), then parks at the last one.
+  def drive(points)
+    mutate do
+      @status = :simulating
+      @error  = nil
+      # A new route starts a new trail rather than joining on to the old one.
+      @trail  = []
+    end
+
+    @sim_points = points
+    @sim_length = SimRoute.length_meters(points)
     @sim_metres = 0
     simulated_fix
 
     @sim_timer = every(1) do
       @sim_metres += SIM_METRES_PER_TICK
       simulated_fix
-      if @sim_metres >= SimRoute.length_meters
+      if @sim_metres >= @sim_length
         @sim_timer.abort
         @sim_timer = nil
       end
@@ -221,7 +310,7 @@ class TrackMe < HyperComponent
   end
 
   def simulated_fix
-    lat, lng, altitude = SimRoute.position_at(@sim_metres)
+    lat, lng, altitude = SimRoute.position_at(@sim_metres, @sim_points)
     on_fix(lat, lng, 12.0, altitude)
   end
 

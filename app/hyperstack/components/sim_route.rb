@@ -1,12 +1,14 @@
-# The drive the "Simulate movement" button follows: 3541 Paseo de Francisco,
-# Oceanside to 260 Cedar Rd, Vista, CA -- Paseo de Francisco, Vista Way,
-# Cedar Rd (about 3.9 km).
-#
-# The road geometry was fetched once from OSRM (OpenStreetMap data) and baked
-# in here, so the simulator makes no network calls and is repeatable in specs.
+# Routes for the "Simulate movement" button. Any address pair is planned by
+# the server (RoutePlanner, via GET /route); the default drive -- 3541 Paseo
+# de Francisco, Oceanside to 260 Cedar Rd, Vista, CA, about 3.9 km along
+# Paseo de Francisco, Vista Way and Cedar Rd -- is baked in below, so the
+# out-of-the-box demo makes no network calls and is repeatable in specs.
 # Each point is [lat, lng, altitude in metres]; the altitudes are ground
 # elevation from Open-Meteo's elevation API (Copernicus 90 m DEM).
 module SimRoute
+  DEFAULT_FROM = "3541 Paseo de Francisco, Oceanside, CA 92056".freeze
+  DEFAULT_TO   = "260 Cedar Rd, Vista, CA 92083".freeze
+
   POINTS = [
     [ 33.18215, -117.30750, 67 ], [ 33.18247, -117.30753, 63 ], [ 33.18246, -117.30772, 63 ],
     [ 33.18239, -117.30801, 63 ], [ 33.18238, -117.30824, 63 ], [ 33.18241, -117.30846, 63 ],
@@ -60,23 +62,33 @@ module SimRoute
     [ 33.18946, -117.28390, 88 ], [ 33.18950, -117.28391, 88 ]
   ].freeze
 
-  # Returns [lat, lng, altitude] for a point +metres+ along the route,
+  def self.default?(from, to)
+    normalize(from) == normalize(DEFAULT_FROM) && normalize(to) == normalize(DEFAULT_TO)
+  end
+
+  def self.normalize(address)
+    address.to_s.strip.downcase.gsub(/\s+/, " ")
+  end
+
+  # Returns [lat, lng, altitude] for a point +metres+ along +points+,
   # interpolating between vertices. Past the end it stays at the destination.
-  def self.position_at(metres)
+  # Altitude is nil where the route has none.
+  def self.position_at(metres, points = POINTS)
     travelled = 0.0
-    POINTS.each_cons(2) do |(lat1, lng1, alt1), (lat2, lng2, alt2)|
+    points.each_cons(2) do |(lat1, lng1, alt1), (lat2, lng2, alt2)|
       leg = Geo.distance_meters(lat1, lng1, lat2, lng2)
       if travelled + leg >= metres
         t = leg.zero? ? 0 : (metres - travelled) / leg
-        return [ lat1 + ((lat2 - lat1) * t), lng1 + ((lng2 - lng1) * t), alt1 + ((alt2 - alt1) * t) ]
+        altitude = alt1 + ((alt2 - alt1) * t) if alt1.is_a?(Numeric) && alt2.is_a?(Numeric)
+        return [ lat1 + ((lat2 - lat1) * t), lng1 + ((lng2 - lng1) * t), altitude ]
       end
       travelled += leg
     end
-    POINTS.last
+    points.last
   end
 
-  def self.length_meters
-    @length_meters ||= POINTS.each_cons(2).sum do |(lat1, lng1), (lat2, lng2)|
+  def self.length_meters(points = POINTS)
+    points.each_cons(2).sum do |(lat1, lng1), (lat2, lng2)|
       Geo.distance_meters(lat1, lng1, lat2, lng2)
     end
   end

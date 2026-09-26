@@ -47,6 +47,53 @@ RSpec.describe "Live tracking", type: :system do
     expect(page).to have_content(/Altitude\s*\d+ m/)
   end
 
+  describe "choosing the simulated drive" do
+    it "offers the default addresses and drives them without a lookup" do
+      expect(RoutePlanner).not_to receive(:plan)
+
+      visit "/me"
+      expect(page).to have_field("Drive from", with: "3541 Paseo de Francisco, Oceanside, CA 92056", wait: 30)
+      expect(page).to have_field("Drive to", with: "260 Cedar Rd, Vista, CA 92083")
+
+      click_button "Simulate movement"
+      expect(page).to have_content(/Simulated movement - \d+ fixes/, wait: 30)
+    end
+
+    it "plans and drives a route between addresses the user typed" do
+      # Somewhere well away from the default drive, so the fix proves which
+      # route was driven. Stubbed in this process, which also runs the app.
+      route = { points: [ [ 40.7580, -73.9855, 20.0 ], [ 40.7590, -73.9845, 22.0 ] ],
+                distance_m: 140, from_label: "Times Sq", to_label: "Bryant Park" }
+      allow(RoutePlanner).to receive(:plan).and_return(route)
+
+      visit "/me"
+      expect(page).to have_css(".leaflet-container", wait: 30)
+      fill_in "Drive from", with: "Times Square, New York"
+      fill_in "Drive to", with: "Bryant Park, New York"
+      click_button "Simulate movement"
+
+      expect(page).to have_content(/Simulated movement - \d+ fixes/, wait: 30)
+      expect(RoutePlanner).to have_received(:plan).with("Times Square, New York", "Bryant Park, New York")
+      expect { Tracker.live.any? }.to eventually_be_truthy
+      expect(Tracker.live.first.lat).to be_within(0.01).of(40.758)
+      # The boxes are locked while the drive is under way.
+      expect(page).to have_field("Drive from", disabled: true)
+    end
+
+    it "shows why a route could not be planned" do
+      allow(RoutePlanner).to receive(:plan).and_raise(RoutePlanner::Error, "Couldn't find \"Atlantis\".")
+
+      visit "/me"
+      expect(page).to have_css(".leaflet-container", wait: 30)
+      fill_in "Drive from", with: "Atlantis"
+      click_button "Simulate movement"
+
+      expect(page).to have_content("Couldn't find \"Atlantis\".", wait: 30)
+      expect(page).to have_button("Simulate movement")
+      expect(page).to have_field("Drive from", disabled: false)
+    end
+  end
+
   it "tracks real GPS fixes that carry no altitude" do
     visit "/me"
     expect(page).to have_css(".leaflet-container", wait: 30)
